@@ -1,3 +1,6 @@
 [submodule "AirDC"]
 	path = AirDC
 	url = git@github.com:iamkroot/airdcpp-ext.git
+[submodule "gform"]
+	path = gform
+	url = git@github.com:iamkroot/gform-filler.git
