@@ -1,0 +1,3 @@
+[submodule "AirDC"]
+	path = AirDC
+	url = git@github.com:iamkroot/airdcpp-ext.git
