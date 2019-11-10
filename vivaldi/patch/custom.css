@@ -1,0 +1,41 @@
+.startpage .startpage-navigation {
+	background-color: #111;
+	opacity: 0.6;
+	box-shadow: none;
+	color: #fff;
+}
+
+
+button.button-startpage:after {
+	background-image: none;
+}
+
+.startpage .button-startpage.active {
+	background-color: #222;
+	color: #fff;
+}
+
+.manager .manager-content,
+.startpage .bookmark .navigation,
+.manager .manager-content .toolbar-wrapper,
+.startpage .history .navigation,
+.startpage .history .manager-content,
+.addbookmark-cardwrapper,
+.manager-editor,
+.startpage .history .Cal__Container__root .ReactVirtualized__List  {
+    background-color: var(--colorBgDarker) !important;
+    opacity: .75 !important;
+}
+
+.panel#downloads li .file,
+.panel#downloads li .file .filename,
+.panel#downloads li .file .size {
+background-color: transparent;    
+}
+
+.tab-header .favicon {
+/**[Remove border around favicon(tab icon) and and shadow]**/
+box-shadow: none !important;
+background-color: transparent !important;
+-webkit-filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.7));
+}

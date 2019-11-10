@@ -1,0 +1,16 @@
+{
+	"paths": {
+		"win32": {
+			"patch_dir": ".\\patch",
+			"viv_dir": "%LOCALAPPDATA%\\Vivaldi\\Application",
+			"data_dir": "%LOCALAPPDATA%\\Vivaldi\\User Data\\Default",
+			"thumbs_dir": "D:\\Pictures\\vivaldi_sd"
+		},
+		"linux": {
+			"patch_dir": "./patch",
+			"viv_dir": "/opt/vivaldi-snapshot",
+			"data_dir": "$HOME/.config/vivaldi-snapshot/Default",
+			"thumbs_dir": "$HOME/Pictures/vivaldi_sd"
+		}
+	}
+}
