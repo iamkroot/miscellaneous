@@ -4,3 +4,6 @@
 [submodule "gform"]
 	path = gform
 	url = git@github.com:iamkroot/gform-filler.git
+[submodule "js-userscripts"]
+	path = js-userscripts
+	url = git@github.com:iamkroot/js-userscripts.git
