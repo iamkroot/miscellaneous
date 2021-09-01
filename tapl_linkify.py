@@ -34,14 +34,14 @@ def find_before_target(page: fitz.Page, target: str, margin=200):
 
 def get_all_entities(search_str: str, page_start: int, page_end: int):
     """Search for versioned entities between given pages"""
-    for pagenum, page in enumerate(mupdf.pages(page_start, page_end)):
+    for page in mupdf.pages(page_start, page_end):
         for found_box in find_before_target(page, search_str):
             try:
                 ver = Version(found_box.string)
             except InvalidVersion:
                 print("Weird entity:", found_box)
             else:
-                yield VersionedEntity(ver, found_box.rect, pagenum)
+                yield VersionedEntity(ver, found_box.rect, page.number)
 
 
 def add_link(source: VersionedEntity, target: VersionedEntity):
