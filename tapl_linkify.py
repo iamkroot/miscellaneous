@@ -2,9 +2,11 @@ import fitz
 from typing import NamedTuple
 from packaging.version import Version, InvalidVersion
 from pathlib import Path
+import re
 
 path = Path("~/Books/Types and Programming Languages.pdf").expanduser()
 mupdf = fitz.open(path)
+SEC_REF_PAT = re.compile(r"§(?P<sec_num>\d(\.\d)*)")
 
 
 class FoundTextBox(NamedTuple):
@@ -16,6 +18,9 @@ class VersionedEntity(NamedTuple):
     """Anything that is stringified as a version (eg: 2.3.4)
 
     A hack to get comparison operators between section numbers for free.
+
+    FIXME: We don't really need comparison operators now that we're doing hashjoin.
+        Better to replace with regex matching. Would be cheaper.
     """
     version: Version
     rect: fitz.Rect
@@ -56,23 +61,64 @@ def add_link(source: VersionedEntity, target: VersionedEntity):
     })
 
 
-all_exercises = get_all_entities("Exercise", 0, 512)
-all_solutions = get_all_entities("Solution:", 514, 587)
+def link_exercises_and_solutions():
+    all_exercises = get_all_entities("Exercise", 0, 512)
+    all_solutions = get_all_entities("Solution:", 514, 587)
 
-# do a hashjoin of exercises and solutions
-solutions_dict = {sol.version: sol for sol in all_solutions}
-found = set()
+    # do a hashjoin of exercises and solutions
+    solutions_dict = {sol.version: sol for sol in all_solutions}
+    found = set()
 
-for exercise in all_exercises:
-    if solution := solutions_dict.get(exercise.version):
-        found.add(solution.version)
-        # print("MATCH!", solution, exercise)
-        add_link(exercise, solution)
-        add_link(solution, exercise)
+    for exercise in all_exercises:
+        if solution := solutions_dict.get(exercise.version):
+            found.add(solution.version)
+            # print("MATCH!", solution, exercise)
+            add_link(exercise, solution)
+            add_link(solution, exercise)
+
+    for solution in set(solutions_dict.keys()).difference(found):
+        print("Warning: No corresponding exercise found for", solution)
 
 
-for solution in set(solutions_dict.keys()).difference(found):
-    print("Warning: No corresponding exercise found for", solution)
+def get_sections():
+    for entry in mupdf.get_toc():
+        level, name, page_num = entry
+        page_num: int
+        try:
+            section_str, _ = name.split(" ", maxsplit=1)
+            yield str(Version(section_str)), page_num - 1
+        except (ValueError, IndexError, TypeError, InvalidVersion):
+            continue
 
 
-mupdf.save(path.with_name("temp.pdf"))
+def get_section_refs(page: fitz.Page):
+    for data in page.get_text("words"):
+        word: str = data[4]
+        if "§" in word:
+            if ver_str := SEC_REF_PAT.search(word):
+                yield fitz.Rect(data[:4]), ver_str["sec_num"]
+            else:
+                print("Weird section num", word)
+
+
+def link_section_refs():
+    section_index = dict(get_sections())
+
+    for page in mupdf.pages():
+        for rect, sec_ref in get_section_refs(page):
+            try:
+                target_page_num = section_index[sec_ref]
+            except KeyError:
+                print("Warning: Could not find page number for section", sec_ref)
+            else:
+                page.insert_link({
+                    'kind': fitz.LINK_GOTO,
+                    'from': rect,
+                    'page': target_page_num,
+                })
+
+
+def main():
+    link_exercises_and_solutions()
+    link_section_refs()
+    mupdf.save(path.with_name("temp.pdf"))
