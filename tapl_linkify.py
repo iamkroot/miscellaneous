@@ -4,9 +4,9 @@ from packaging.version import Version, InvalidVersion
 from pathlib import Path
 import re
 
-path = Path("~/Books/Types and Programming Languages.pdf").expanduser()
+path = Path("~/Books/Types and Programming Languages.bak.pdf").expanduser()
 mupdf = fitz.open(path)
-SEC_REF_PAT = re.compile(r"§(?P<sec_num>\d(\.\d)*)")
+SEC_REF_PAT = re.compile(r"§(?P<sec_num>\d+(\.\d+)*)")
 
 
 class FoundTextBox(NamedTuple):
@@ -122,3 +122,7 @@ def main():
     link_exercises_and_solutions()
     link_section_refs()
     mupdf.save(path.with_name("temp.pdf"))
+
+
+if __name__ == '__main__':
+    main()
