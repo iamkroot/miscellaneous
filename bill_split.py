@@ -9,7 +9,7 @@ It's main inputs are
     Rose punch: Leorio x2 (leorio had two servings)
     Tea: Kurapika
 
-    # starters: everyone
+    # starters: @everyone
     nachos
     fries
     (the above two items will be split across all the people named here)
@@ -36,8 +36,7 @@ from pprint import pprint
 
 bill_path = Path("./bill.txt")
 expenses_data = Path("./expenses.txt").read_text()
-# TAX_MULT = Fraction(1)
-TAX_MULT = Fraction("1.011124")
+TAX_MULT = Fraction("1.0836621941594318")
 """Taxation rate on top of bill item prices"""
 
 
@@ -62,95 +61,111 @@ def parse_bill(path: Path, tax_mult: Fraction):
             for r in bill_data2]
 
 
-EVERYONE = "everyone"
+EVERYONE_NAME = "@everyone"
 MULT_PAT = re.compile(r'(?P<name>.*?)\s+x(?P<mult>\d+)$')
 
 
 @dataclass
-class Name:
+class Person:
     name: str
     negate: bool = False
     multiplier: int = 1
 
     @staticmethod
     def from_names(names: list[str]):
-        return [Name(name) for name in names]
+        return [Person(name) for name in names]
 
 
-everyone_name = Name(EVERYONE)
+EVERYONE = Person(EVERYONE_NAME)
 
 
-def parse_names(names_str: str) -> list[Name]:
-    names: list[Name] = []
-    for name in names_str.split(","):
-        name = name.strip()
-        if name == EVERYONE:
-            names.append(everyone_name)
+def parse_people(names_str: str) -> list[Person]:
+    people: list[Person] = []
+    for person in names_str.strip(", ").split(","):
+        person = person.strip()
+        if person == EVERYONE_NAME:
+            people.append(EVERYONE)
             continue
         neg = False
-        if name.startswith("-"):
+        if person.startswith("-"):
             neg = True
-            name = name.lstrip("-").lstrip()
-        if match := MULT_PAT.match(name):
-            names.append(Name(match['name'].title(), neg, int(match['mult'])))
+            person = person.lstrip("-").lstrip()
+        if match := MULT_PAT.match(person):
+            people.append(Person(match['name'].title(), neg, int(match['mult'])))
         else:
-            names.append(Name(name.title(), neg))
-    return names
+            people.append(Person(person.title(), neg))
+    return people
 
 
 def parse_expenses(data: str):
-    cat_names = None
-    people = set()
-    items: dict[str, list[Name]] = {}
+    cat_people = None
+    # people = set()
+    aliases = defaultdict(set)
+    items: dict[str, list[Person]] = {}
     for line in data.splitlines():
         if not line:
             continue
+
+        if line.startswith('@'):
+            # parsing a group alias
+            split = line.split(":")
+            alias = split[0].strip()
+            # for now, only @everyone is supported.
+            assert alias == EVERYONE_NAME
+            persons = parse_people(split[1].strip())
+            aliases[alias].update(name.name for name in persons
+                                  if name.name not in aliases)
+            continue
+
         if line.startswith("#"):
             # new category
             split = line.split(":")
             if len(split) > 1:
                 # names of people
-                names_str = split[1].strip()
-                cat_names = parse_names(names_str)
-                people.update(name.name for name in cat_names if name != everyone_name)
+                cat_people = parse_people(split[1].strip())
+                aliases[EVERYONE_NAME].update(name.name for name in cat_people
+                                              if name.name not in aliases)
             else:
-                # reset the cat_names
-                cat_names = None
+                # reset the cat_people
+                cat_people = None
             continue
         # now at a food line
         split = line.split(":")
         item_name = split[0].strip()
         if len(split) == 1:
-            assert cat_names
-            cur_people = cat_names
+            assert cat_people
+            cur_people = cat_people
         else:
-            cur_people = parse_names(split[1])
-            people.update(name.name for name in cur_people if name != everyone_name)
+            cur_people = parse_people(split[1].strip())
+            aliases[EVERYONE_NAME].update(name.name for name in cur_people
+                                          if name.name not in aliases)
         items[item_name] = cur_people
-    return finalize_names(items, people)
+    # TODO: finalize_names should handle all aliases, not just @everyone
+    return finalize_names(items, aliases[EVERYONE_NAME])
 
 
-def finalize_names(items: dict[str, list[Name]], people: set[str]):
-    # do a second pass to handle negations and "everyone"
+def finalize_names(items: dict[str, list[Person]], people: set[str]):
+    # do a second pass to handle negations and "@everyone"
     # our final return value will only have the names and their multipliers
     final_items: dict[str, Counter] = {}
     for item, names in items.copy().items():
-        final_names = Counter()
+        final_names: Counter[str] = Counter()
         removed_names = Counter()
         added_everyone = False
         for name in names:
             if name.negate:
                 removed_names[name.name] += name.multiplier
                 if not added_everyone:
-                    final_names.update({name: 1 for name in people})
+                    final_names.update(people)
                     added_everyone = True
-            elif name == everyone_name:
+            elif name == EVERYONE:
                 if not added_everyone:
-                    final_names.update({name: 1 for name in people})
+                    final_names.update(people)
                     added_everyone = True
             else:
-                final_names[name.name] = name.multiplier
+                final_names[name.name] += name.multiplier
         final_names -= removed_names
+        assert not any(name.startswith("@") for name in final_names), "found alias in final_names"
         final_items[item] = final_names
     return final_items
 
@@ -160,7 +175,7 @@ def is_sampler(name):
 
 
 def assign_shares(items: dict[str, Counter[str]], bill: list[BillItem]):
-    samplers = [name for name, val in items.items() if is_sampler(name)]
+    samplers = [name for name in items.keys() if is_sampler(name)]
     shares = defaultdict(Fraction)
     details = defaultdict(dict)
 
@@ -178,7 +193,7 @@ def assign_shares(items: dict[str, Counter[str]], bill: list[BillItem]):
             details[person][bill_item.name] = share
     print("total", float(sum(shares.values())))
     pprint({name: round(float(share), 2) for name, share in shares.items()})
-    pprint(dict(details))
+    pprint(dict({p: {n: round(float(v), 2) for n, v in items.items()} for p, items in details.items()}))
 
 
 bill = parse_bill(bill_path, TAX_MULT)
