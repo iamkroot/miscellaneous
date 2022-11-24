@@ -4,12 +4,6 @@ from configparser import ConfigParser, NoOptionError
 DRIVE_ROOT = Path("/path/to/drive/")
 
 
-def make_kde_conf(icon_path):
-    kde_config = ConfigParser(default_section="Desktop Entry")
-    kde_config['Desktop Entry'] = {'Icon': icon_path}
-    return kde_config
-
-
 class KDEConfig:
     """Wraps .directory file, handling icon files."""
 
@@ -52,8 +46,14 @@ class WindowsConfig():
         self.file = file
         if self.file.exists():
             self.config.read(self.file)
+        else:
+            self._populate_default()
         self.is_relative = False
         self.trailing = ''
+
+    def _populate_default(self):
+        self.config.add_section("ViewState")
+        self.config["ViewState"]["FolderType"] = "Generic"
 
     @property
     def icon_path(self) -> PureWindowsPath:
@@ -104,7 +104,23 @@ def ini_to_directory(ini_file: Path, move_to_parent=True):
     ico_to_directory(posix_icon_path)
 
 
-if __name__ == '__main__':
+def directory_to_ini(directory_file: Path, update=False):
+    ini_file = directory_file.parent / "desktop.ini"
+    if not update and ini_file.exists():
+        return
+    print("Converting", directory_file.parent.name)
+    kde_config = KDEConfig(directory_file)
+    if not kde_config.icon_path.is_absolute():
+        posix_icon_path = directory_file.parent / kde_config.icon_path
+    win_config = WindowsConfig(ini_file)
+    rel_path = posix_icon_path.relative_to(DRIVE_ROOT)
+    win_icon_path = PureWindowsPath("\\" + "\\".join(rel_path.parts))
+    print(win_icon_path)
+    win_config.icon_path = win_icon_path
+    win_config.save()
+
+
+def temp():
     fold = DRIVE_ROOT
     for config in fold.glob("**/.directory"):
         conf = KDEConfig(config)
@@ -114,3 +130,12 @@ if __name__ == '__main__':
         rel_path = "./" + path.name
         conf.icon_path = rel_path
         print(rel_path)
+
+
+def populate_missing_ini(directory: Path):
+    for directory_file in directory.rglob(".directory"):
+        directory_to_ini(directory_file)
+
+
+if __name__ == '__main__':
+    populate_missing_ini(DRIVE_ROOT)
