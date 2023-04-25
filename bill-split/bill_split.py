@@ -2,6 +2,9 @@
 This is a simple tool to split the bill expenses among various people.
 It's main inputs are
 1. A TSV file of Bill with columns- quantity,name,price. Usually OCR'd from some service
+    The first line of the bill should look like "!paid: 1234.00"
+    This will be used to account for any taxes/discounts in the final paid amount.
+    The price column of the items should therefore be the ORIGINAL price (before taxes.)
 2. A description of the people who consumed each item in the bill. Sample-
 
     # drinks
@@ -37,10 +40,6 @@ from typing import Iterable
 
 bill_path = Path("./bill.txt")
 expenses_data = Path("./expenses.txt").read_text()
-DISCOUNT = Fraction("1")
-"""Discount, if any"""
-TAX_MULT = Fraction("1")
-"""Taxation rate on top of bill item prices"""
 
 
 @dataclass
@@ -49,19 +48,34 @@ class BillItem:
     price: Fraction
     quantity: int = 1
 
+    def scale_price(self, multiplier: Fraction):
+        return BillItem(self.name, self.price * multiplier, self.quantity)
 
-def parse_bill(path: Path, price_mult: Fraction):
+
+def parse_bill(path: Path):
     bill_data = path.read_text()
+    lines = bill_data.splitlines()
+
+    # first parse the !paid directive
+    assert lines[0].strip().startswith("!paid"), \
+        "First line should be paid amount directive. Eg: '!paid: 1234.00'"
+    total_paid = Fraction(lines[0].split(":")[1].strip())
+
+    # now parse the item lines
     bill_data2 = DictReader(
-        bill_data.splitlines(),
+        [line for line in lines if line.strip() and not line.startswith("!")],
         fieldnames=["quantity", "name", "price"],
         dialect=csv.excel_tab)
 
-    return [BillItem(
+    items = [BillItem(
                 r['name'],
-                Fraction(r['price'].replace(',', '')) * price_mult,
+                Fraction(r['price'].replace(',', '')),
                 int(r['quantity']))
-            for r in bill_data2]
+             for r in bill_data2]
+    # adjust the prices based on actual amount paid
+    item_sum = sum(item.price for item in items)
+    price_mult = total_paid / item_sum
+    return [item.scale_price(price_mult) for item in items]
 
 
 EVERYONE_NAME = "@everyone"
@@ -231,6 +245,6 @@ def assign_shares(items: dict[str, Counter[str]], bill: list[BillItem]):
     pprint(dict({p: {n: round(float(v), 2) for n, v in items.items()} for p, items in details.items()}))
 
 
-bill = parse_bill(bill_path, TAX_MULT * DISCOUNT)
+bill = parse_bill(bill_path)
 items = parse_expenses(expenses_data)
 assign_shares(items, bill)
