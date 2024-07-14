@@ -7,3 +7,6 @@
 [submodule "js-userscripts"]
 	path = js-userscripts
 	url = git@github.com:iamkroot/js-userscripts.git
+[submodule "bill-split"]
+	path = bill-split
+	url = https://github.com/iamkroot/bill-split
